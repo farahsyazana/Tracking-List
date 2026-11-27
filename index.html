@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tracking List</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%85%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f5fa; --surface:#ffffff; --ink:#25243a; --muted:#7d7b93; --line:#e8e7f1; --hover:#f3f2fa;
+  --accent:#7466e8; --accent-soft:#ebe9fd; --accent-ink:#4d40c4;
+  --st-not-bg:#ecebf2; --st-not-fg:#625f78;
+  --st-prog-bg:#e0e8ff; --st-prog-fg:#3350c0;
+  --st-hold-bg:#fff0d4; --st-hold-fg:#9a6208;
+  --st-done-bg:#d9f4e5; --st-done-fg:#1c7347;
+  --bad-bg:#ffe2e6; --bad-fg:#c0354a;
+  --shadow:0 1px 2px rgba(37,36,58,.04),0 4px 14px rgba(37,36,58,.05);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#16151f; --surface:#1f1e2b; --ink:#ecebf6; --muted:#9a98b2; --line:#302f42; --hover:#272637;
+    --accent:#9187f5; --accent-soft:#2c2a4d; --accent-ink:#c5bfff;
+    --st-not-bg:#2e2d3d; --st-not-fg:#b4b2c9;
+    --st-prog-bg:#25315e; --st-prog-fg:#a9bbff;
+    --st-hold-bg:#4a3a17; --st-hold-fg:#ffd58a;
+    --st-done-bg:#1d4533; --st-done-fg:#8fe0b5;
+    --bad-bg:#4d2330; --bad-fg:#ff9aab;
+    --shadow:none; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+
+/* header */
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.logo{width:42px;height:42px;border-radius:13px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:20px;font-weight:700}
+.titles h1{margin:0;font-size:22px;line-height:1.2;font-weight:700}
+.titles p{margin:2px 0 0;color:var(--muted);font-size:13.5px}
+.spacer{flex:1}
+.saved{font-size:13px;color:var(--muted);min-width:70px;text-align:right}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.07)}
+
+/* tabs */
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
+.tab{border:0;background:transparent;border-radius:999px;padding:8px 14px;cursor:pointer;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:8px}
+.tab:hover{background:var(--hover);color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent-ink)}
+.tab .n{font-size:12px;background:var(--surface);color:var(--muted);border-radius:999px;padding:0 7px;line-height:20px;border:1px solid var(--line)}
+
+/* summary */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow)}
+.stat .v{font-size:30px;font-weight:700;line-height:1.1}
+.stat .l{color:var(--muted);font-size:13.5px;margin-top:4px}
+.stat.bad .v{color:var(--bad-fg)}
+.panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.panel h2{margin:0 0 12px;font-size:15.5px;font-weight:700}
+.panel.wide{grid-column:1/-1}
+.bar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--st-not-bg)}
+.bar span{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:13.5px;color:var(--muted)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.big{font-size:13.5px;color:var(--muted);margin-top:10px}
+.item{display:flex;align-items:center;gap:10px;padding:8px 8px;margin:0 -8px;border-radius:10px;cursor:pointer;border:0;background:none;width:calc(100% + 16px);text-align:left}
+.item:hover{background:var(--hover)}
+.item .t{flex:1;min-width:0}
+.item .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .t small{color:var(--muted);font-size:12.5px}
+.tag{font-size:12.5px;font-weight:600;border-radius:999px;padding:2px 10px;white-space:nowrap;background:var(--hover);color:var(--muted)}
+.tag.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.tag.soon{background:var(--st-hold-bg);color:var(--st-hold-fg)}
+.mini{height:8px;border-radius:999px;background:var(--st-not-bg);overflow:hidden;flex:0 0 90px}
+.mini i{display:block;height:100%;background:var(--st-done-fg);opacity:.75}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+
+/* list view */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar input,.toolbar select{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;min-width:0}
+.toolbar input{flex:1;min-width:180px;max-width:340px}
+.section{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden}
+.sec-head{display:flex;align-items:center;gap:10px;padding:12px 16px 6px}
+.sec-title{font-weight:700;font-size:16.5px;border:1px solid transparent;background:transparent;border-radius:8px;padding:2px 8px;margin-left:-8px;min-width:0;width:220px;max-width:100%}
+.sec-title:hover{background:var(--hover)}
+.sec-title:focus{background:var(--surface);border-color:var(--accent)}
+.count{font-size:12.5px;color:var(--muted);background:var(--hover);border-radius:999px;padding:0 9px;line-height:22px}
+.grid{display:grid;grid-template-columns:30px minmax(170px,2fr) 132px 142px minmax(110px,1fr) minmax(200px,2fr) 28px;gap:8px;align-items:start;padding:6px 16px}
+.cols{color:var(--muted);font-size:13px;font-weight:600;border-bottom:1px solid var(--line);padding-bottom:8px;align-items:center}
+.row{border-bottom:1px solid var(--line)}
+.row:last-of-type{border-bottom:0}
+.row .no{color:var(--muted);font-size:13px;padding-top:9px;text-align:center}
+.fld{width:100%;border:1px solid transparent;background:transparent;border-radius:8px;padding:6px 8px;resize:none;overflow:hidden;display:block;line-height:1.45}
+.fld:hover{background:var(--hover)}
+.fld:focus{background:var(--surface);border-color:var(--accent)}
+input[type=date].fld{padding:6px 4px}
+input[type=date].fld.overdue{color:var(--bad-fg);font-weight:600}
+.row.done .task{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
+.chipwrap{position:relative;padding-top:4px}
+.chipwrap::after{content:"▾";position:absolute;right:12px;top:8px;font-size:11px;pointer-events:none;opacity:.7}
+select.chip{appearance:none;-webkit-appearance:none;border:0;border-radius:999px;padding:5px 26px 5px 12px;font-size:13px;font-weight:600;cursor:pointer;width:100%}
+.chip.s0{background:var(--st-not-bg);color:var(--st-not-fg)}
+.chip.s1{background:var(--st-prog-bg);color:var(--st-prog-fg)}
+.chip.s2{background:var(--st-hold-bg);color:var(--st-hold-fg)}
+.chip.s3{background:var(--st-done-bg);color:var(--st-done-fg)}
+.chip option{background:var(--surface);color:var(--ink)}
+.link{border:0;background:none;color:var(--accent-ink);font-size:12.5px;font-weight:600;cursor:pointer;padding:2px 8px}
+.link:hover{text-decoration:underline}
+.icon{border:0;background:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:6px;border-radius:8px;opacity:.5}
+.row:hover .icon,.icon:focus-visible{opacity:1}
+.icon:hover{background:var(--bad-bg);color:var(--bad-fg)}
+.sec-foot{display:flex;gap:6px;padding:4px 12px 12px}
+.addsec{width:100%;border:1.5px dashed var(--line);background:transparent;border-radius:14px;padding:12px;color:var(--muted);font-weight:600;cursor:pointer}
+.addsec:hover{background:var(--hover);color:var(--ink)}
+
+/* dialogs */
+dialog{border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);padding:22px;width:min(540px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(20,19,35,.45)}
+dialog h2{margin:0 0 4px;font-size:18px}
+dialog p{margin:6px 0;color:var(--muted);font-size:14px}
+.lab{display:block;margin:14px 0 4px;font-weight:600;font-size:13.5px}
+.inp{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 12px}
+.inp:focus{border-color:var(--accent)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.msg{min-height:20px;font-size:13.5px;margin-top:10px;color:var(--accent-ink)}
+dialog code{background:var(--hover);padding:2px 6px;border-radius:6px;font-size:12.5px;word-break:break-all}
+dialog details{margin-top:14px;font-size:14px}
+dialog summary{cursor:pointer;font-weight:600}
+dialog ol{padding-left:20px;color:var(--muted)}
+dialog li{margin:6px 0}
+.backup{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+
+/* toast + footer */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;display:flex;gap:14px;align-items:center;z-index:20;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.toast button{background:none;border:0;color:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
+.toast[hidden]{display:none}
+footer{margin-top:28px;color:var(--muted);font-size:13px;text-align:center}
+footer button{border:0;background:none;color:inherit;text-decoration:underline;cursor:pointer;font-size:inherit}
+
+@media (max-width:900px){
+  .panels{grid-template-columns:1fr}
+  .cols{display:none}
+  .grid.row{grid-template-columns:28px 1fr 1fr 28px;grid-template-areas:"no task task del" ". due status ." ". pic pic ." ". rem rem .";padding:10px 12px}
+  .row .no{grid-area:no}.row .c-task{grid-area:task}.row .c-due{grid-area:due}.row .c-status{grid-area:status}
+  .row .c-pic{grid-area:pic}.row .c-rem{grid-area:rem}.row .icon{grid-area:del;opacity:.6}
+  .sec-title{width:100%}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo" aria-hidden="true">✓</div>
+    <div class="titles">
+      <h1>Tracking List</h1>
+      <p id="today"></p>
+    </div>
+    <div class="spacer"></div>
+    <span class="saved" id="saved" aria-live="polite"></span>
+    <button class="btn primary" id="btnExcel">Connect Excel</button>
+  </header>
+
+  <nav id="tabs" role="tablist" aria-label="Lists"></nav>
+  <main id="view"></main>
+
+  <footer>
+    Changes are saved in this browser and, once connected, in your Excel file on OneDrive or SharePoint.
+    <br><button id="btnReset">Reset to starter data</button>
+  </footer>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<dialog id="dlgExcel">
+  <h2>Excel for the web</h2>
+  <p>Link a workbook on OneDrive or SharePoint. Edits here are written back to it, and it is read again when you open the page.</p>
+  <label class="lab" for="exLink">Workbook share link</label>
+  <input class="inp" id="exLink" placeholder="https://…sharepoint.com/…  or  https://1drv.ms/…" autocomplete="off">
+  <label class="lab" for="exClient">Application (client) ID</label>
+  <input class="inp" id="exClient" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off">
+  <label class="lab" for="exTenant">Directory (tenant) ID <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+  <input class="inp" id="exTenant" placeholder="Leave blank unless your app is single-tenant" autocomplete="off">
+  <div class="msg" id="exMsg" aria-live="polite"></div>
+  <details>
+    <summary>How to set this up (one time)</summary>
+    <ol>
+      <li>In the Microsoft Entra admin center, open <b>App registrations → New registration</b>.</li>
+      <li>Add a redirect URI of type <b>Single-page application</b>: <code id="exRedirect"></code></li>
+      <li>Under <b>API permissions</b>, add Microsoft Graph, delegated, <b>Files.ReadWrite.All</b>.</li>
+      <li>Copy the <b>Application (client) ID</b> into the box above.</li>
+      <li>In Excel for the web, choose <b>Share → Copy link</b> (anyone in your org who has the link can edit) and paste it above.</li>
+    </ol>
+    <p>If your organisation blocks app registration or needs admin approval, ask your IT team to do steps 1 to 3 for you.</p>
+  </details>
+  <div class="actions">
+    <button class="btn primary" id="exConnect">Save &amp; connect</button>
+    <button class="btn" id="exPull">Refresh from Excel</button>
+    <button class="btn" id="exDisc">Disconnect</button>
+    <button class="btn" id="exClose">Close</button>
+  </div>
+  <div class="backup">
+    <p>Backup without signing in:</p>
+    <div class="actions" style="margin-top:6px">
+      <button class="btn" id="btnImport">Import .xlsx file</button>
+      <button class="btn" id="btnExport">Export .xlsx file</button>
+    </div>
+    <input type="file" id="file" accept=".xlsx,.xls" hidden>
+  </div>
+</dialog>
+
+<dialog id="dlgAsk">
+  <p id="askMsg" style="color:var(--ink);font-size:15px"></p>
+  <div class="actions" style="justify-content:flex-end">
+    <button class="btn" id="askNo">Cancel</button>
+    <button class="btn primary" id="askYes">OK</button>
+  </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<script>
+"use strict";
+
+/* ---------- starter data (from Tracking_List.xlsx) ---------- */
+const STATUSES = ["Not Started", "In Progress", "On hold", "Completed"];
+const KEY = "tracking-list-v1";
+const R = (task, due, status, pic, remarks) => ({ task, due, status, pic, remarks });
+
+const SEED = { lists: [
+  { name: "Farah-to-do", sections: [
+    { title: "Important", rows: [
+      R("Regression Analysis", "2026-11-30", "In Progress", "Finance", "26/11/26: received margin by product from finance, did AI, but not sure if correct or not"),
+      R("TM One EUC High-Spec Device Requirements", "2026-12-04", "In Progress", "EUC (Lutfil/Amir Asyraf)", "25/11/26: BYOD Policies for Microsoft 365 not permitted")
+    ]},
+    { title: "Continuously", rows: [
+      R("EVP: Letter reference number tracking", "", "Not Started", "", "shared with Aza")
+    ]},
+    { title: "Leisure", rows: [
+      R("AI Agent", "", "In Progress", "", "to contact with Akmar from NCOE (NEXA team)"),
+      R("FYP paper 2025 Study", "", "In Progress", "", "to get some idea on product")
+    ]}
+  ]},
+  { name: "Followup External", sections: [
+    { title: "Important", rows: [
+      R("MOC: USM - TM ONE", "", "In Progress", "Puan Azam", "10/11/26: Puan Azam - next week session for detils and scope MOC"),
+      R("Contracts Deposited with TM CMC and/or Catchy or ConsysII - From 1 January 2026 to 30 June 2026", "", "In Progress", "Datin Zaleena", "30/10/26: Datin verifying the list\n11/11/26: Datin - need to wait until end of november to gather contracts from states"),
+      R("IAR Productization System", "", "Not Started", "Puan Murni", "6/11/26: responded to puan Shanti, need to confirm can close? I don’t think so"),
+      R("Ruijie Courtesy Visit", "", "Not Started", "Puan Nida", "10/11/26: puan Shanti - better puan Nida to look at this"),
+      R("Partnership Model: Vision AI", "", "In Progress", "Puan Nida", "25/11/26: Puan Nida - preparing for PCM"),
+      R("Partnership Management", "", "In Progress", "Haji Mail", "25/11/26: Session set 14 Dec 2026 with CPO"),
+      R("AOP Vision AI Deep Dive", "", "Not Started", "Dayana", ""),
+      R("AOP Cybersecurity Deep Dive", "", "Not Started", "Dayana", "")
+    ]}
+  ]},
+  { name: "Followup Puan Shanti", sections: [
+    { title: "Important", rows: [
+      R("CONFIDENTIALITY AGREEMENT (MUTUAL)_ICT49.26 Enterprise ITSM Implementation TM v2", "", "In Progress", "Puan Azam", "12/10/26: puan Shanti - link expired"),
+      R("News Release | NAI Dialogue x TM One MoC", "", "Completed", "Kak Fairus", "26/11/26: Approved on the same day")
+    ]}
+  ]}
+]};
+
+/* ---------- state ---------- */
+const clone = o => JSON.parse(JSON.stringify(o));
+function load() {
+  try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+}
+let state = load() || clone(SEED);
+const ui = { tab: "summary", q: "", status: "", pic: "" };
+let saveTimer, undoData;
+
+const DIRTY_KEY = "tracking-list-dirty-v1";
+const ex = { linked: false, ready: false, busy: false, dirty: new Set(), t: null, lastPull: 0 };
+try { JSON.parse(localStorage.getItem(DIRTY_KEY) || "[]").forEach(i => ex.dirty.add(i)); } catch (e) {}
+const persistDirty = () => { try { localStorage.setItem(DIRTY_KEY, JSON.stringify([...ex.dirty])); } catch (e) {} };
+const setStatus = m => { document.getElementById("saved").textContent = m; };
+
+function save(all) {
+  clearTimeout(saveTimer);
+  if (!ex.ready) setStatus("Saving…");
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); if (!ex.ready) setStatus("Saved"); }
+    catch (e) { setStatus("Not saved (storage blocked)"); }
+  }, 250);
+  if (ex.linked) {
+    if (all) state.lists.forEach((_, i) => ex.dirty.add(i));
+    else if (ui.tab !== "summary") ex.dirty.add(+ui.tab);
+    persistDirty();
+    if (ex.ready) schedulePush();
+  }
+}
+
+function ask(msg, ok) {
+  return new Promise(res => {
+    const d = document.getElementById("dlgAsk");
+    document.getElementById("askMsg").textContent = msg;
+    document.getElementById("askYes").textContent = ok || "OK";
+    const done = v => { d.close(); res(v); };
+    document.getElementById("askYes").onclick = () => done(true);
+    document.getElementById("askNo").onclick = () => done(false);
+    d.oncancel = () => res(false);
+    d.showModal();
+  });
+}
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pad = n => String(n).padStart(2, "0");
+const isoOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayISO = () => isoOf(new Date());
+const toDate = iso => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / 864e5);
+const fmtShort = iso => toDate(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const statusIdx = s => Math.max(0, STATUSES.indexOf(s));
+const isOpen = r => r.status !== "Completed";
+const isOverdue = r => r.due && isOpen(r) && r.due < todayISO();
+const allRows = () => state.lists.flatMap((l, li) => l.sections.flatMap(s => s.rows.map(r => ({ r, li, sec: s.title, list: l.name }))));
+
+function lastUpdate(remarks) {
+  let best = "";
+  for (const m of String(remarks).matchAll(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g)) {
+    let [d, mo, y] = [+m[1], +m[2], +m[3]];
+    if (y < 100) y += 2000;
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) continue;
+    const iso = `${y}-${pad(mo)}-${pad(d)}`;
+    if (iso > best) best = iso;
+  }
+  return best;
+}
+
+function toast(msg, actionLabel, action) {
+  const t = $("#toast");
+  t.innerHTML = `<span>${esc(msg)}</span>` + (actionLabel ? `<button>${esc(actionLabel)}</button>` : "");
+  t.hidden = false;
+  if (actionLabel) t.querySelector("button").onclick = () => { action(); t.hidden = true; };
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => (t.hidden = true), 5000);
+}
+
+/* ---------- render: tabs ---------- */
+function renderTabs() {
+  const tabs = [{ id: "summary", label: "Summary", n: null }].concat(
+    state.lists.map((l, i) => ({ id: String(i), label: l.name, n: l.sections.flatMap(s => s.rows).filter(isOpen).length }))
+  );
+  $("#tabs").innerHTML = tabs.map(t =>
+    `<button class="tab" role="tab" aria-selected="${ui.tab === t.id}" data-tab="${t.id}">${esc(t.label)}${t.n != null ? `<span class="n" title="Open tasks">${t.n}</span>` : ""}</button>`
+  ).join("");
+}
+
+/* ---------- render: summary ---------- */
+function renderSummary() {
+  const rows = allRows();
+  const total = rows.length;
+  const today = todayISO();
+  const count = s => rows.filter(x => x.r.status === s).length;
+  const overdue = rows.filter(x => isOverdue(x.r));
+  const soon = rows.filter(x => isOpen(x.r) && x.r.due && x.r.due >= today && daysBetween(today, x.r.due) <= 7);
+  const done = count("Completed");
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const colors = ["var(--st-not-fg)", "var(--st-prog-fg)", "var(--st-hold-fg)", "var(--st-done-fg)"];
+
+  const bar = STATUSES.map((s, i) => `<span style="width:${total ? (count(s) / total) * 100 : 0}%;background:${colors[i]};opacity:.8"></span>`).join("");
+  const legend = STATUSES.map((s, i) => `<span><i class="dot" style="background:${colors[i]}"></i>${s} ${count(s)}</span>`).join("");
+
+  const byList = state.lists.map((l, i) => {
+    const rs = l.sections.flatMap(s => s.rows);
+    const d = rs.filter(r => r.status === "Completed").length;
+    return `<button class="item" data-goto="${i}"><div class="t"><b>${esc(l.name)}</b><small>${rs.length - d} open · ${d} done</small></div><div class="mini"><i style="width:${rs.length ? (d / rs.length) * 100 : 0}%"></i></div></button>`;
+  }).join("");
+
+  const upcoming = rows.filter(x => isOpen(x.r) && x.r.due).sort((a, b) => a.r.due.localeCompare(b.r.due)).slice(0, 6);
+  const upHtml = upcoming.length ? upcoming.map(x => {
+    const diff = daysBetween(today, x.r.due);
+    const cls = diff < 0 ? "bad" : diff <= 7 ? "soon" : "";
+    const label = diff < 0 ? `${-diff}d overdue` : diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : fmtShort(x.r.due);
+    return `<button class="item" data-goto="${x.li}"><div class="t"><b>${esc(x.r.task || "Untitled")}</b><small>${esc(x.list)}${x.r.pic ? " · " + esc(x.r.pic) : ""}</small></div><span class="tag ${cls}">${label}</span></button>`;
+  }).join("") : `<div class="empty">No open tasks have a due date.</div>`;
+
+  const quiet = rows.filter(x => isOpen(x.r)).map(x => ({ ...x, last: lastUpdate(x.r.remarks) }))
+    .filter(x => x.last && daysBetween(x.last, today) >= 7)
+    .sort((a, b) => a.last.localeCompare(b.last)).slice(0, 6);
+  const quietHtml = quiet.length ? quiet.map(x =>
+    `<button class="item" data-goto="${x.li}"><div class="t"><b>${esc(x.r.task)}</b><small>${esc(x.r.pic || x.list)}</small></div><span class="tag">${daysBetween(x.last, today)}d quiet</span></button>`
+  ).join("") : `<div class="empty">Everything has a recent update.</div>`;
+
+  const pics = {};
+  rows.filter(x => isOpen(x.r) && x.r.pic.trim()).forEach(x => { pics[x.r.pic.trim()] = (pics[x.r.pic.trim()] || 0) + 1; });
+  const picList = Object.entries(pics).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const maxPic = picList.length ? picList[0][1] : 1;
+  const picHtml = picList.length ? picList.map(([p, n]) =>
+    `<div class="item" style="cursor:default"><div class="t"><b>${esc(p)}</b></div><div class="mini"><i style="width:${(n / maxPic) * 100}%;background:var(--accent)"></i></div><span class="tag">${n}</span></div>`
+  ).join("") : `<div class="empty">No PICs assigned yet.</div>`;
+
+  return `
+  <div class="cards">
+    <div class="card stat"><div class="v">${total}</div><div class="l">Total tasks</div></div>
+    <div class="card stat"><div class="v">${count("In Progress")}</div><div class="l">In progress</div></div>
+    <div class="card stat ${overdue.length ? "bad" : ""}"><div class="v">${overdue.length}</div><div class="l">Overdue</div></div>
+    <div class="card stat"><div class="v">${soon.length}</div><div class="l">Due in 7 days</div></div>
+    <div class="card stat"><div class="v">${done}</div><div class="l">Completed</div></div>
+  </div>
+  <div class="panels">
+    <section class="card panel wide"><h2>Progress</h2>
+      <div class="bar" role="img" aria-label="Status breakdown">${bar}</div>
+      <div class="legend">${legend}</div>
+      <div class="big">${pct}% of all tasks completed</div>
+    </section>
+    <section class="card panel"><h2>Coming up</h2>${upHtml}</section>
+    <section class="card panel"><h2>Needs a nudge</h2>${quietHtml}</section>
+    <section class="card panel"><h2>By list</h2>${byList}</section>
+    <section class="card panel"><h2>Open tasks by PIC</h2>${picHtml}</section>
+  </div>`;
+}
+
+/* ---------- render: a list ---------- */
+function renderList(li) {
+  const l = state.lists[li];
+  const pics = [...new Set(l.sections.flatMap(s => s.rows.map(r => r.pic.trim())).filter(Boolean))].sort();
+  return `
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Search tasks, PIC, remarks" value="${esc(ui.q)}" aria-label="Search">
+    <select id="fStatus" aria-label="Filter by status"><option value="">All statuses</option>${STATUSES.map(s => `<option ${ui.status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+    <select id="fPic" aria-label="Filter by PIC"><option value="">All PICs</option>${pics.map(p => `<option ${ui.pic === p ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>
+    <button class="btn" id="clearF">Clear</button>
+  </div>
+  <div id="secs">${renderSections(li)}</div>
+  <button class="addsec" data-act="addsec">+ Add section</button>`;
+}
+
+function renderSections(li) {
+  const l = state.lists[li];
+  const filtering = ui.q || ui.status || ui.pic;
+  const q = ui.q.toLowerCase();
+  const match = r => (!q || (r.task + " " + r.pic + " " + r.remarks).toLowerCase().includes(q)) &&
+    (!ui.status || r.status === ui.status) && (!ui.pic || r.pic.trim() === ui.pic);
+  const today = todayISO();
+
+  const html = l.sections.map((s, si) => {
+    const visible = s.rows.map((r, ri) => ({ r, ri })).filter(x => match(x.r));
+    if (filtering && !visible.length) return "";
+    const rowsHtml = visible.map(({ r, ri }) => `
+      <div class="grid row ${r.status === "Completed" ? "done" : ""}" data-s="${si}" data-r="${ri}">
+        <div class="no">${ri + 1}</div>
+        <div class="c-task"><textarea class="fld task" data-f="task" rows="1" placeholder="Task" aria-label="Task">${esc(r.task)}</textarea></div>
+        <div class="c-due"><input type="date" class="fld ${isOverdue(r) ? "overdue" : ""}" data-f="due" value="${esc(r.due)}" aria-label="Due date"></div>
+        <div class="c-status chipwrap"><select class="chip s${statusIdx(r.status)}" data-f="status" aria-label="Status">${STATUSES.map(x => `<option ${x === r.status ? "selected" : ""}>${x}</option>`).join("")}</select></div>
+        <div class="c-pic"><input class="fld" data-f="pic" value="${esc(r.pic)}" placeholder="PIC" aria-label="PIC"></div>
+        <div class="c-rem"><textarea class="fld" data-f="remarks" rows="1" placeholder="Remarks" aria-label="Remarks">${esc(r.remarks)}</textarea><button class="link" data-act="note">+ dated note</button></div>
+        <button class="icon" data-act="del" title="Delete task" aria-label="Delete task">×</button>
+      </div>`).join("");
+    return `
+    <section class="section" data-s="${si}">
+      <div class="sec-head">
+        <input class="sec-title" data-f="stitle" value="${esc(s.title)}" placeholder="Section name" aria-label="Section name">
+        <span class="count">${s.rows.length}</span>
+        <span class="spacer"></span>
+        <button class="link" data-act="delsec">Delete section</button>
+      </div>
+      <div class="grid cols"><div>No</div><div>Task</div><div>Due date</div><div>Status</div><div>PIC</div><div>Remarks</div><div></div></div>
+      ${rowsHtml || `<div class="empty" style="padding:6px 16px">No tasks yet.</div>`}
+      <div class="sec-foot"><button class="link" data-act="add">+ Add task</button></div>
+    </section>`;
+  }).join("");
+  return html || `<div class="card empty">Nothing matches your filters.</div>`;
+}
+
+/* ---------- main render ---------- */
+function render() {
+  $("#today").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  renderTabs();
+  $("#view").innerHTML = ui.tab === "summary" ? renderSummary() : renderList(+ui.tab);
+  autosizeAll();
+}
+function renderSecs() { $("#secs").innerHTML = renderSections(+ui.tab); autosizeAll(); }
+function autosize(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; }
+function autosizeAll() { document.querySelectorAll("textarea.fld").forEach(autosize); }
+window.addEventListener("resize", autosizeAll);
+
+/* ---------- events ---------- */
+document.addEventListener("click", e => {
+  const tab = e.target.closest("[data-tab]");
+  if (tab) { ui.tab = tab.dataset.tab; ui.q = ui.status = ui.pic = ""; render(); return; }
+  const go = e.target.closest("[data-goto]");
+  if (go) { ui.tab = go.dataset.goto; ui.q = ui.status = ui.pic = ""; render(); window.scrollTo({ top: 0 }); return; }
+
+  const act = e.target.closest("[data-act]");
+  if (!act) return;
+  const li = +ui.tab, l = state.lists[li];
+  const secEl = act.closest("[data-s]"), si = secEl ? +secEl.dataset.s : -1;
+  const rowEl = act.closest(".row"), ri = rowEl ? +rowEl.dataset.r : -1;
+
+  if (act.dataset.act === "add") {
+    ui.q = ui.status = ui.pic = "";
+    l.sections[si].rows.push(R("", "", "Not Started", "", ""));
+    save(); render();
+    const rows = document.querySelectorAll(`.section[data-s="${si}"] .row`);
+    rows[rows.length - 1]?.querySelector(".task").focus();
+  } else if (act.dataset.act === "del") {
+    const [row] = l.sections[si].rows.splice(ri, 1);
+    undoData = { li, si, ri, row };
+    save(); render();
+    toast("Task deleted", "Undo", () => { state.lists[li].sections[si].rows.splice(ri, 0, row); save(); render(); });
+  } else if (act.dataset.act === "note") {
+    const d = new Date(), stamp = `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}: `;
+    const r = l.sections[si].rows[ri];
+    r.remarks = r.remarks.trim() ? r.remarks.replace(/\s+$/, "") + "\n" + stamp : stamp;
+    save();
+    const ta = rowEl.querySelector('[data-f="remarks"]');
+    ta.value = r.remarks; autosize(ta); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  } else if (act.dataset.act === "addsec") {
+    l.sections.push({ title: "New section", rows: [R("", "", "Not Started", "", "")] });
+    save(); render();
+    const t = document.querySelectorAll(".sec-title"); const last = t[t.length - 1]; last.focus(); last.select();
+  } else if (act.dataset.act === "delsec") {
+    const sec = l.sections[si];
+    const doDel = () => { l.sections.splice(si, 1); save(); render(); };
+    if (sec.rows.length) ask(`Delete “${sec.title || "this section"}” and its ${sec.rows.length} task(s)?`, "Delete").then(ok => ok && doDel());
+    else doDel();
+  }
+});
+
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (el.id === "q") { ui.q = el.value; renderSecs(); return; }
+  const f = el.dataset.f;
+  if (!f) return;
+  const l = state.lists[+ui.tab];
+  if (f === "stitle") { l.sections[+el.closest("[data-s]").dataset.s].title = el.value; }
+  else {
+    const row = el.closest(".row");
+    l.sections[+row.dataset.s].rows[+row.dataset.r][f] = el.value;
+    if (el.tagName === "TEXTAREA") autosize(el);
+  }
+  if (f !== "status" && f !== "due") renderTabs();
+  save();
+});
+
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.id === "fStatus") { ui.status = el.value; renderSecs(); return; }
+  if (el.id === "fPic") { ui.pic = el.value; renderSecs(); return; }
+  if (el.dataset.f === "status" || el.dataset.f === "due") {
+    const y = window.scrollY;
+    render(); window.scrollTo({ top: y });
+  }
+});
+
+document.addEventListener("click", e => {
+  if (e.target.id === "clearF") { ui.q = ui.status = ui.pic = ""; render(); }
+});
+
+/* ---------- Excel export ---------- */
+const toSerial = iso => { const [y, m, d] = iso.split("-").map(Number); return Date.UTC(y, m - 1, d) / 864e5 + 25569; };
+const fromSerial = n => { const d = new Date(Math.round((n - 25569) * 864e5)); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
+
+function exportXlsx() {
+  if (typeof XLSX === "undefined") { toast("Excel library didn’t load. Check your connection and refresh."); return; }
+  const wb = XLSX.utils.book_new();
+
+  const sum = [["List", "Total", ...STATUSES]];
+  state.lists.forEach(l => {
+    const rs = l.sections.flatMap(s => s.rows);
+    sum.push([l.name, rs.length, ...STATUSES.map(s => rs.filter(r => r.status === s).length)]);
+  });
+  const all = allRows().map(x => x.r);
+  sum.push(["All lists", all.length, ...STATUSES.map(s => all.filter(r => r.status === s).length)]);
+  const sws = XLSX.utils.aoa_to_sheet(sum);
+  sws["!cols"] = [{ wch: 26 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, sws, "Summary");
+
+  state.lists.forEach(l => {
+    const aoa = [[]], dateRows = [];
+    l.sections.forEach(s => {
+      if (s.title) aoa.push([null, s.title]);
+      aoa.push([null, "No", "Task", "Due Date", "Status", "PIC", "Remarks"]);
+      s.rows.forEach((r, i) => {
+        aoa.push([null, i + 1, r.task, r.due ? toSerial(r.due) : null, r.status, r.pic, r.remarks]);
+        if (r.due) dateRows.push(aoa.length - 1);
+      });
+      aoa.push([]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    dateRows.forEach(r => { const c = ws[XLSX.utils.encode_cell({ r, c: 3 })]; if (c) c.z = "d-mmm-yy"; });
+    ws["!cols"] = [{ wch: 3 }, { wch: 6 }, { wch: 44 }, { wch: 11 }, { wch: 15 }, { wch: 22 }, { wch: 52 }];
+    XLSX.utils.book_append_sheet(wb, ws, l.name.slice(0, 31).replace(/[\\/?*[\]:]/g, "-") || "Sheet");
+  });
+
+  XLSX.writeFile(wb, "Tracking_List.xlsx");
+  toast("Exported Tracking_List.xlsx");
+}
+
+/* ---------- Excel import ---------- */
+const cellText = v => (v == null ? "" : String(v).trim());
+function cellDate(v) {
+  if (v === "" || v == null) return "";
+  if (v instanceof Date) return isoOf(v);
+  if (typeof v === "number") return fromSerial(v);
+  const m = String(v).trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (m) { let y = +m[3]; if (y < 100) y += 2000; return `${y}-${pad(+m[2])}-${pad(+m[1])}`; }
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v).trim()) ? String(v).trim() : "";
+}
+function normStatus(v) {
+  const s = cellText(v).toLowerCase();
+  return STATUSES.find(x => x.toLowerCase() === s) || "Not Started";
+}
+
+function parseWorkbook(wb) {
+  const lists = [];
+  wb.SheetNames.forEach(name => {
+    if (name.trim().toLowerCase() === "summary") return;
+    const ws = wb.Sheets[name];
+    if (!ws || !ws["!ref"]) return;
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    range.s.r = 0; range.s.c = 0;
+    const l = parseRows(name, XLSX.utils.sheet_to_json(ws, { header: 1, range, raw: true, defval: "" }));
+    if (l) lists.push(l);
+  });
+  return lists;
+}
+
+/* turns a grid of cells (row 1 = Excel row 1, column A first) into one list */
+function parseRows(name, a) {
+  {
+    const heads = [];
+    a.forEach((row, i) => { if (cellText(row[1]) === "No" && cellText(row[2]).toLowerCase() === "task") heads.push(i); });
+    if (!heads.length) return null;
+    const sections = heads.map((h, k) => {
+      const prev = a[h - 1];
+      const title = prev && typeof prev[1] === "string" && cellText(prev[1]) && cellText(prev[1]) !== "No" ? cellText(prev[1]) : "";
+      const end = k + 1 < heads.length ? heads[k + 1] : a.length;
+      const rows = [];
+      for (let i = h + 1; i < end; i++) {
+        const r = a[i];
+        if (![2, 3, 4, 5, 6].some(c => cellText(r[c]))) continue;
+        rows.push(R(cellText(r[2]), cellDate(r[3]), normStatus(r[4]), cellText(r[5]), String(r[6] ?? "").trim()));
+      }
+      return { title, rows };
+    }).filter(s => s.title || s.rows.length);
+    return { name, sections };
+  }
+}
+
+$("#btnExport").onclick = exportXlsx;
+$("#btnImport").onclick = () => $("#file").click();
+$("#file").onchange = async e => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  if (typeof XLSX === "undefined") { toast("Excel library didn’t load. Check your connection and refresh."); return; }
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+    const lists = parseWorkbook(wb);
+    if (!lists.length) { toast("No tracking tables found. Each sheet needs a header row with No / Task."); return; }
+    const n = lists.reduce((t, l) => t + l.sections.reduce((u, s) => u + s.rows.length, 0), 0);
+    if (!(await ask(`Import ${n} tasks from ${f.name}? This replaces what is on the page now.`, "Import"))) return;
+    state = { lists }; ui.tab = "summary"; save(true); render();
+    toast(`Imported ${n} tasks from ${f.name}`);
+  } catch (err) {
+    toast("Couldn’t read that file. Is it a valid .xlsx?");
+  }
+};
+
+$("#btnReset").onclick = async () => {
+  if (!(await ask("Reset everything back to the starter data? Your edits on this page will be lost.", "Reset"))) return;
+  state = clone(SEED); ui.tab = "summary"; save(true); render();
+};
+
+/* ---------- Excel for the web (Microsoft Graph) ---------- */
+const CFG_KEY = "tracking-list-excel-v1";
+const GRAPH = "https://graph.microsoft.com/v1.0";
+const SCOPES = ["Files.ReadWrite.All"];
+const MAXR = 300;
+const REDIRECT = location.origin + location.pathname;
+const IN_POPUP = !!window.opener && /[#&](code|error)=/.test(location.hash);
+let cfg = null, msalApp = null, account = null;
+try { cfg = JSON.parse(localStorage.getItem(CFG_KEY)); } catch (e) {}
+
+const exMsg = t => { $("#exMsg").textContent = t || ""; };
+function updateExcelUI() {
+  const b = $("#btnExcel");
+  if (ex.ready) { b.textContent = "Excel connected ✓"; b.className = "btn"; }
+  else if (ex.linked) { b.textContent = "Reconnect Excel"; b.className = "btn primary"; }
+  else { b.textContent = "Connect Excel"; b.className = "btn primary"; }
+}
+function initMsal() {
+  if (typeof msal === "undefined") throw new Error("The Microsoft sign-in library didn’t load. Check your connection and refresh.");
+  msalApp = new msal.PublicClientApplication({
+    auth: { clientId: cfg.clientId, authority: "https://login.microsoftonline.com/" + (cfg.tenant || "common"), redirectUri: REDIRECT },
+    cache: { cacheLocation: "localStorage" }
+  });
+}
+async function token() {
+  const req = { scopes: SCOPES, account };
+  try { return (await msalApp.acquireTokenSilent(req)).accessToken; }
+  catch (e) { return (await msalApp.acquireTokenPopup(req)).accessToken; }
+}
+async function g(path, opts = {}) {
+  const t = await token();
+  const r = await fetch(GRAPH + path, { ...opts, headers: { Authorization: "Bearer " + t, "Content-Type": "application/json", ...(opts.headers || {}) } });
+  if (!r.ok) {
+    let m = r.status + " " + r.statusText;
+    try { m = (await r.json()).error.message || m; } catch (e) {}
+    throw new Error(m);
+  }
+  return r.status === 204 ? null : r.json();
+}
+async function resolveItem() {
+  const enc = "u!" + btoa(unescape(encodeURIComponent(cfg.link))).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
+  const it = await g(`/shares/${enc}/driveItem?$select=id,name,parentReference`);
+  cfg.drive = it.parentReference.driveId; cfg.item = it.id; cfg.name = it.name;
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+}
+const wbBase = () => `/drives/${cfg.drive}/items/${cfg.item}/workbook`;
+
+async function pullLists() {
+  const sheets = await g(wbBase() + "/worksheets?$select=name,visibility");
+  const lists = [];
+  for (const s of sheets.value) {
+    if (s.visibility !== "Visible" || s.name.trim().toLowerCase() === "summary") continue;
+    const rg = await g(`${wbBase()}/worksheets/${encodeURIComponent(s.name)}/range(address='A1:H${MAXR}')?$select=values`);
+    const l = parseRows(s.name, rg.values);
+    if (l) lists.push(l);
+  }
+  return lists;
+}
+function layout(l) {
+  const rows = [[]], fmt = [[]];
+  l.sections.forEach(s => {
+    if (s.title) { rows.push(["", s.title]); fmt.push([]); }
+    rows.push(["", "No", "Task", "Due Date", "Status", "PIC", "Remarks"]); fmt.push([]);
+    s.rows.forEach((r, i) => {
+      rows.push(["", i + 1, r.task, r.due ? toSerial(r.due) : "", r.status, r.pic, r.remarks]);
+      fmt.push(["General", "General", "General", r.due ? "d-mmm-yy" : "General"]);
+    });
+    rows.push([]); fmt.push([]);
+  });
+  const fit = (r, d) => Array.from({ length: 7 }, (_, i) => (r[i] === undefined || r[i] === null ? d : r[i]));
+  return { values: rows.map(r => fit(r, "")), numberFormat: fmt.map(r => fit(r, "General")) };
+}
+async function pushList(l) {
+  const { values, numberFormat } = layout(l);
+  if (values.length > MAXR) throw new Error(`“${l.name}” has more than ${MAXR} rows.`);
+  const sheet = `${wbBase()}/worksheets/${encodeURIComponent(l.name)}`;
+  await g(`${sheet}/range(address='A1:H${MAXR}')/clear`, { method: "POST", body: JSON.stringify({ applyTo: "Contents" }) });
+  await g(`${sheet}/range(address='A1:G${values.length}')`, { method: "PATCH", body: JSON.stringify({ values, numberFormat }) });
+}
+
+function schedulePush() {
+  clearTimeout(ex.t); setStatus("Syncing…");
+  ex.t = setTimeout(flush, 1500);
+}
+async function flush() {
+  if (!ex.ready || !ex.dirty.size) return;
+  if (ex.busy) { clearTimeout(ex.t); ex.t = setTimeout(flush, 800); return; }
+  ex.busy = true; setStatus("Syncing…");
+  const idx = [...ex.dirty]; ex.dirty.clear();
+  try {
+    for (const i of idx) if (state.lists[i]) await pushList(state.lists[i]);
+    persistDirty(); setStatus("Synced to Excel");
+  } catch (e) {
+    idx.forEach(i => ex.dirty.add(i)); persistDirty(); setStatus("Sync failed");
+    toast("Couldn’t sync to Excel: " + e.message, "Retry", flush);
+  }
+  ex.busy = false;
+}
+function applyLists(lists) {
+  if (JSON.stringify(lists) === JSON.stringify(state.lists)) return;
+  state = { lists };
+  if (ui.tab !== "summary" && !state.lists[+ui.tab]) ui.tab = "summary";
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  render();
+}
+async function refresh() {
+  if (ex.dirty.size) await flush();
+  if (ex.dirty.size) return;
+  setStatus("Reading Excel…");
+  const lists = await pullLists();
+  if (!lists.length) throw new Error("No tracking tables found. Each sheet needs a header row with No / Task.");
+  applyLists(lists);
+  ex.lastPull = Date.now(); setStatus("Synced to Excel");
+}
+
+async function connect() {
+  const clientId = $("#exClient").value.trim(), tenant = $("#exTenant").value.trim(), link = $("#exLink").value.trim();
+  if (!clientId || !link) { exMsg("Add the share link and the client ID first."); return; }
+  cfg = { clientId, tenant, link };
+  try {
+    initMsal();
+    exMsg("Signing in…");
+    const res = await msalApp.loginPopup({ scopes: SCOPES });
+    account = res.account; msalApp.setActiveAccount(account);
+    exMsg("Finding your workbook…");
+    await resolveItem();
+    exMsg("Reading “" + cfg.name + "”…");
+    const lists = await pullLists();
+    if (!lists.length) throw new Error("No tracking tables found. Each sheet needs a header row with No / Task.");
+    if (JSON.stringify(lists) !== JSON.stringify(state.lists) &&
+        !(await ask(`Load ${lists.reduce((t, l) => t + l.sections.reduce((u, s) => u + s.rows.length, 0), 0)} tasks from “${cfg.name}”? This replaces what is on the page now.`, "Load"))) {
+      exMsg("Not connected."); return;
+    }
+    ex.dirty.clear(); persistDirty();
+    ex.linked = true; ex.ready = true; ex.lastPull = Date.now();
+    applyLists(lists); updateExcelUI(); setStatus("Synced to Excel");
+    exMsg("Connected to “" + cfg.name + "”.");
+  } catch (e) {
+    ex.ready = false; updateExcelUI();
+    exMsg("Couldn’t connect: " + (e && e.message ? e.message : e));
+  }
+}
+function disconnect() {
+  ex.linked = ex.ready = false; ex.dirty.clear(); persistDirty();
+  cfg = null; account = null; msalApp = null;
+  try {
+    localStorage.removeItem(CFG_KEY);
+    Object.keys(localStorage).filter(k => k.startsWith("msal.") || k.includes("login.windows.net")).forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+  updateExcelUI(); setStatus("Saved"); exMsg("Disconnected. Your data stays on this page.");
+}
+function openExcel() {
+  $("#exLink").value = cfg?.link || ""; $("#exClient").value = cfg?.clientId || ""; $("#exTenant").value = cfg?.tenant || "";
+  $("#exRedirect").textContent = REDIRECT;
+  exMsg(ex.ready ? "Connected to “" + (cfg.name || "your workbook") + "”." : "");
+  $("#dlgExcel").showModal();
+}
+$("#btnExcel").onclick = openExcel;
+$("#exClose").onclick = () => $("#dlgExcel").close();
+$("#exConnect").onclick = connect;
+$("#exDisc").onclick = disconnect;
+$("#exPull").onclick = async () => {
+  if (!ex.linked) { exMsg("Connect first."); return; }
+  try {
+    if (!ex.ready) { initMsal(); account = msalApp.getAllAccounts()[0]; if (!account) { exMsg("Use Save & connect to sign in again."); return; } ex.ready = true; updateExcelUI(); }
+    exMsg("Refreshing…"); await refresh(); exMsg("Up to date.");
+  } catch (e) { exMsg("Couldn’t refresh: " + e.message); setStatus("Sync failed"); }
+};
+
+async function startExcel() {
+  if (cfg && cfg.item) ex.linked = true;
+  updateExcelUI();
+  if (!ex.linked) return;
+  try {
+    initMsal();
+    account = msalApp.getAllAccounts()[0];
+    if (!account) { setStatus("Excel: sign in again"); return; }
+    msalApp.setActiveAccount(account);
+    ex.ready = true; updateExcelUI();
+    if (ex.dirty.size) await flush(); else await refresh();
+  } catch (e) {
+    ex.ready = false; updateExcelUI(); setStatus("Excel: sign in again");
+  }
+}
+document.addEventListener("visibilitychange", () => {
+  const a = document.activeElement;
+  const typing = a && /INPUT|TEXTAREA|SELECT/.test(a.tagName);
+  if (document.visibilityState === "visible" && ex.ready && !ex.busy && !ex.dirty.size && !typing && Date.now() - ex.lastPull > 60000) {
+    refresh().catch(() => setStatus("Sync failed"));
+  }
+});
+
+if (!IN_POPUP) {
+  render();
+  setStatus(load() ? "Saved" : "");
+  startExcel();
+}
+</script>
+</body>
+</html>

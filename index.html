@@ -167,48 +167,41 @@ footer button{border:0;background:none;color:inherit;text-decoration:underline;c
     </div>
     <div class="spacer"></div>
     <span class="saved" id="saved" aria-live="polite"></span>
-    <button class="btn primary" id="btnExcel">Connect Excel</button>
+    <button class="btn primary" id="btnExcel">Link Excel file</button>
   </header>
 
   <nav id="tabs" role="tablist" aria-label="Lists"></nav>
   <main id="view"></main>
 
   <footer>
-    Changes are saved in this browser and, once connected, in your Excel file on OneDrive or SharePoint.
+    Changes are saved in this browser and, once linked, in your Excel file.
     <br><button id="btnReset">Reset to starter data</button>
   </footer>
 </div>
 <div class="toast" id="toast" hidden></div>
 
 <dialog id="dlgExcel">
-  <h2>Excel for the web</h2>
-  <p>Link a workbook on OneDrive or SharePoint. Edits here are written back to it, and it is read again when you open the page.</p>
-  <label class="lab" for="exLink">Workbook share link</label>
-  <input class="inp" id="exLink" placeholder="https://…sharepoint.com/…  or  https://1drv.ms/…" autocomplete="off">
-  <label class="lab" for="exClient">Application (client) ID</label>
-  <input class="inp" id="exClient" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off">
-  <label class="lab" for="exTenant">Directory (tenant) ID <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
-  <input class="inp" id="exTenant" placeholder="Leave blank unless your app is single-tenant" autocomplete="off">
+  <h2>Link your Excel file</h2>
+  <p>Choose the tracking list that lives in your OneDrive folder on this computer. Changes you make here are saved straight into that file, and OneDrive syncs it to Excel online.</p>
   <div class="msg" id="exMsg" aria-live="polite"></div>
-  <details>
-    <summary>How to set this up (one time)</summary>
-    <ol>
-      <li>In the Microsoft Entra admin center, open <b>App registrations → New registration</b>.</li>
-      <li>Add a redirect URI of type <b>Single-page application</b>: <code id="exRedirect"></code></li>
-      <li>Under <b>API permissions</b>, add Microsoft Graph, delegated, <b>Files.ReadWrite.All</b>.</li>
-      <li>Copy the <b>Application (client) ID</b> into the box above.</li>
-      <li>In Excel for the web, choose <b>Share → Copy link</b> (anyone in your org who has the link can edit) and paste it above.</li>
-    </ol>
-    <p>If your organisation blocks app registration or needs admin approval, ask your IT team to do steps 1 to 3 for you.</p>
-  </details>
-  <div class="actions">
-    <button class="btn primary" id="exConnect">Save &amp; connect</button>
-    <button class="btn" id="exPull">Refresh from Excel</button>
-    <button class="btn" id="exDisc">Disconnect</button>
+  <div class="actions" style="margin-top:8px">
+    <button class="btn primary" id="exChoose">Choose Excel file</button>
+    <button class="btn" id="exPull">Refresh from file</button>
+    <button class="btn" id="exDisc">Unlink</button>
     <button class="btn" id="exClose">Close</button>
   </div>
+  <details>
+    <summary>Good to know</summary>
+    <ol>
+      <li>Use Chrome or Edge on a laptop or desktop. On a phone the page can’t reach the file, so use the backup buttons below there.</li>
+      <li>Pick the file inside your OneDrive folder (File Explorer → OneDrive), not a copy from Downloads.</li>
+      <li>Your browser asks for permission to edit the file. On later visits you may need to click Reconnect Excel once.</li>
+      <li>Close the file in desktop Excel while you edit here, and avoid editing in both places at the same moment.</li>
+      <li>Cell colours stay where they are in the sheet. If you add rows here, tidy the styling in Excel. OneDrive’s version history lets you roll back anytime.</li>
+    </ol>
+  </details>
   <div class="backup">
-    <p>Backup without signing in:</p>
+    <p>Backup without linking:</p>
     <div class="actions" style="margin-top:6px">
       <button class="btn" id="btnImport">Import .xlsx file</button>
       <button class="btn" id="btnExport">Export .xlsx file</button>
@@ -226,7 +219,7 @@ footer button{border:0;background:none;color:inherit;text-decoration:underline;c
 </dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 "use strict";
 
@@ -675,103 +668,139 @@ $("#btnReset").onclick = async () => {
   state = clone(SEED); ui.tab = "summary"; save(true); render();
 };
 
-/* ---------- Excel for the web (Microsoft Graph) ---------- */
-const CFG_KEY = "tracking-list-excel-v1";
-const GRAPH = "https://graph.microsoft.com/v1.0";
-const SCOPES = ["Files.ReadWrite.All"];
-const MAXR = 300;
-const REDIRECT = location.origin + location.pathname;
-const IN_POPUP = !!window.opener && /[#&](code|error)=/.test(location.hash);
-let cfg = null, msalApp = null, account = null;
-try { cfg = JSON.parse(localStorage.getItem(CFG_KEY)); } catch (e) {}
-
+/* ---------- Link an Excel file on this computer (File System Access API) ---------- */
+const LINK_KEY = "tracking-list-linked-v1";
+const CAN_LINK = "showOpenFilePicker" in window;
+const MAXR = 300, MAXC = 8;
+let fh = null;
 const exMsg = t => { $("#exMsg").textContent = t || ""; };
+
+/* remember the chosen file between visits */
+const idb = (mode, fn) => new Promise((res, rej) => {
+  const open = indexedDB.open("tracking-list", 1);
+  open.onupgradeneeded = () => open.result.createObjectStore("kv");
+  open.onerror = () => rej(open.error);
+  open.onsuccess = () => {
+    const tx = open.result.transaction("kv", mode), rq = fn(tx.objectStore("kv"));
+    tx.oncomplete = () => res(rq && rq.result);
+    tx.onerror = () => rej(tx.error);
+  };
+});
+const rememberHandle = h => idb("readwrite", s => (h ? s.put(h, "file") : s.delete("file"))).catch(() => {});
+const recallHandle = () => idb("readonly", s => s.get("file")).catch(() => null);
+
 function updateExcelUI() {
   const b = $("#btnExcel");
-  if (ex.ready) { b.textContent = "Excel connected ✓"; b.className = "btn"; }
+  if (ex.ready) { b.textContent = "Excel linked ✓"; b.className = "btn"; }
   else if (ex.linked) { b.textContent = "Reconnect Excel"; b.className = "btn primary"; }
-  else { b.textContent = "Connect Excel"; b.className = "btn primary"; }
+  else { b.textContent = "Link Excel file"; b.className = "btn primary"; }
 }
-function initMsal() {
-  if (typeof msal === "undefined") throw new Error("The Microsoft sign-in library didn’t load. Check your connection and refresh.");
-  msalApp = new msal.PublicClientApplication({
-    auth: { clientId: cfg.clientId, authority: "https://login.microsoftonline.com/" + (cfg.tenant || "common"), redirectUri: REDIRECT },
-    cache: { cacheLocation: "localStorage" }
-  });
-}
-async function token() {
-  const req = { scopes: SCOPES, account };
-  try { return (await msalApp.acquireTokenSilent(req)).accessToken; }
-  catch (e) { return (await msalApp.acquireTokenPopup(req)).accessToken; }
-}
-async function g(path, opts = {}) {
-  const t = await token();
-  const r = await fetch(GRAPH + path, { ...opts, headers: { Authorization: "Bearer " + t, "Content-Type": "application/json", ...(opts.headers || {}) } });
-  if (!r.ok) {
-    let m = r.status + " " + r.statusText;
-    try { m = (await r.json()).error.message || m; } catch (e) {}
-    throw new Error(m);
-  }
-  return r.status === 204 ? null : r.json();
-}
-async function resolveItem() {
-  const enc = "u!" + btoa(unescape(encodeURIComponent(cfg.link))).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
-  const it = await g(`/shares/${enc}/driveItem?$select=id,name,parentReference`);
-  cfg.drive = it.parentReference.driveId; cfg.item = it.id; cfg.name = it.name;
-  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
-}
-const wbBase = () => `/drives/${cfg.drive}/items/${cfg.item}/workbook`;
 
-async function pullLists() {
-  const sheets = await g(wbBase() + "/worksheets?$select=name,visibility");
+/* ----- reading ----- */
+function cellVal(c) {
+  const v = c.value;
+  if (v == null) return "";
+  if (v instanceof Date) return v.getTime() / 864e5 + 25569;
+  if (typeof v === "object") {
+    if (v.richText) return v.richText.map(t => t.text).join("");
+    if ("result" in v) return v.result instanceof Date ? v.result.getTime() / 864e5 + 25569 : (v.result ?? "");
+    if (v.text !== undefined) return v.text;
+    return "";
+  }
+  return v;
+}
+function sheetGrid(ws) {
+  const a = [], n = Math.min(ws.rowCount || 0, MAXR);
+  for (let r = 1; r <= n; r++) {
+    const row = [];
+    for (let c = 1; c <= MAXC; c++) row.push(cellVal(ws.getCell(r, c)));
+    a.push(row);
+  }
+  return a;
+}
+async function readFromFile() {
+  if (typeof ExcelJS === "undefined") throw new Error("The Excel library didn’t load. Check your connection and refresh.");
+  const file = await fh.getFile();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await file.arrayBuffer());
   const lists = [];
-  for (const s of sheets.value) {
-    if (s.visibility !== "Visible" || s.name.trim().toLowerCase() === "summary") continue;
-    const rg = await g(`${wbBase()}/worksheets/${encodeURIComponent(s.name)}/range(address='A1:H${MAXR}')?$select=values`);
-    const l = parseRows(s.name, rg.values);
+  wb.eachSheet(ws => {
+    if ((ws.state && ws.state !== "visible") || ws.name.trim().toLowerCase() === "summary") return;
+    const l = parseRows(ws.name, sheetGrid(ws));
     if (l) lists.push(l);
-  }
-  return lists;
-}
-function layout(l) {
-  const rows = [[]], fmt = [[]];
-  l.sections.forEach(s => {
-    if (s.title) { rows.push(["", s.title]); fmt.push([]); }
-    rows.push(["", "No", "Task", "Due Date", "Status", "PIC", "Remarks"]); fmt.push([]);
-    s.rows.forEach((r, i) => {
-      rows.push(["", i + 1, r.task, r.due ? toSerial(r.due) : "", r.status, r.pic, r.remarks]);
-      fmt.push(["General", "General", "General", r.due ? "d-mmm-yy" : "General"]);
-    });
-    rows.push([]); fmt.push([]);
   });
-  const fit = (r, d) => Array.from({ length: 7 }, (_, i) => (r[i] === undefined || r[i] === null ? d : r[i]));
-  return { values: rows.map(r => fit(r, "")), numberFormat: fmt.map(r => fit(r, "General")) };
-}
-async function pushList(l) {
-  const { values, numberFormat } = layout(l);
-  if (values.length > MAXR) throw new Error(`“${l.name}” has more than ${MAXR} rows.`);
-  const sheet = `${wbBase()}/worksheets/${encodeURIComponent(l.name)}`;
-  await g(`${sheet}/range(address='A1:H${MAXR}')/clear`, { method: "POST", body: JSON.stringify({ applyTo: "Contents" }) });
-  await g(`${sheet}/range(address='A1:G${values.length}')`, { method: "PATCH", body: JSON.stringify({ values, numberFormat }) });
+  return { lists, modified: file.lastModified };
 }
 
+/* ----- writing (keeps the workbook’s own styling) ----- */
+function layout(l) {
+  const rows = [[]];
+  l.sections.forEach(s => {
+    if (s.title) rows.push(["", s.title]);
+    rows.push(["", "No", "Task", "Due Date", "Status", "PIC", "Remarks"]);
+    s.rows.forEach((r, i) => {
+      const [y, m, d] = (r.due || "").split("-").map(Number);
+      rows.push(["", i + 1, r.task, r.due ? new Date(Date.UTC(y, m - 1, d)) : "", r.status, r.pic, r.remarks]);
+    });
+    rows.push([]);
+  });
+  return rows;
+}
+function fillSheet(ws, l) {
+  const rows = layout(l);
+  const last = Math.max(ws.rowCount, rows.length);
+  for (let r = 1; r <= last; r++) for (let c = 1; c <= MAXC; c++) {
+    try { const cell = ws.getCell(r, c); if (!cell.isMerged || cell.master === cell) cell.value = null; } catch (e) {}
+  }
+  rows.forEach((row, i) => row.forEach((v, j) => {
+    if (v === "" || v == null) return;
+    const cell = ws.getCell(i + 1, j + 1);
+    cell.value = v;
+    if (v instanceof Date) cell.numFmt = "d-mmm-yy";
+  }));
+}
+async function writeToFile(idx) {
+  const file = await fh.getFile();
+  if (ex.modified && file.lastModified !== ex.modified) {
+    const mine = await ask("The Excel file was changed outside this page. Replace it with the version on this page?", "Use this page");
+    if (!mine) {
+      const r = await readFromFile();
+      applyLists(r.lists); ex.modified = r.modified; ex.dirty.clear(); persistDirty();
+      return false;
+    }
+  }
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await file.arrayBuffer());
+  idx.forEach(i => {
+    const l = state.lists[i];
+    if (l) fillSheet(wb.getWorksheet(l.name) || wb.addWorksheet(l.name), l);
+  });
+  const buf = await wb.xlsx.writeBuffer();
+  const w = await fh.createWritable();
+  await w.write(buf); await w.close();
+  ex.modified = (await fh.getFile()).lastModified;
+  return true;
+}
+
+/* ----- sync engine ----- */
 function schedulePush() {
-  clearTimeout(ex.t); setStatus("Syncing…");
-  ex.t = setTimeout(flush, 1500);
+  clearTimeout(ex.t); setStatus("Saving to Excel…");
+  ex.t = setTimeout(flush, 1200);
 }
 async function flush() {
   if (!ex.ready || !ex.dirty.size) return;
   if (ex.busy) { clearTimeout(ex.t); ex.t = setTimeout(flush, 800); return; }
-  ex.busy = true; setStatus("Syncing…");
+  ex.busy = true;
   const idx = [...ex.dirty]; ex.dirty.clear();
   try {
-    for (const i of idx) if (state.lists[i]) await pushList(state.lists[i]);
-    persistDirty(); setStatus("Synced to Excel");
+    const ok = await writeToFile(idx);
+    persistDirty(); setStatus(ok ? "Saved to Excel" : "Loaded from Excel");
   } catch (e) {
-    idx.forEach(i => ex.dirty.add(i)); persistDirty(); setStatus("Sync failed");
-    toast("Couldn’t sync to Excel: " + e.message, "Retry", flush);
+    idx.forEach(i => ex.dirty.add(i)); persistDirty(); setStatus("Couldn’t save to Excel");
+    toast("Couldn’t save to Excel. If the file is open in desktop Excel, close it first.", "Retry", flush);
   }
   ex.busy = false;
+  if (ex.dirty.size && ex.ready) schedulePush();
 }
 function applyLists(lists) {
   if (JSON.stringify(lists) === JSON.stringify(state.lists)) return;
@@ -783,95 +812,88 @@ function applyLists(lists) {
 async function refresh() {
   if (ex.dirty.size) await flush();
   if (ex.dirty.size) return;
-  setStatus("Reading Excel…");
-  const lists = await pullLists();
-  if (!lists.length) throw new Error("No tracking tables found. Each sheet needs a header row with No / Task.");
-  applyLists(lists);
-  ex.lastPull = Date.now(); setStatus("Synced to Excel");
+  const r = await readFromFile();
+  if (!r.lists.length) throw new Error("No tracking tables found. Each sheet needs a header row with No / Task.");
+  applyLists(r.lists); ex.modified = r.modified; setStatus("Synced with Excel");
 }
+const countTasks = ls => ls.reduce((t, l) => t + l.sections.reduce((u, s) => u + s.rows.length, 0), 0);
 
-async function connect() {
-  const clientId = $("#exClient").value.trim(), tenant = $("#exTenant").value.trim(), link = $("#exLink").value.trim();
-  if (!clientId || !link) { exMsg("Add the share link and the client ID first."); return; }
-  cfg = { clientId, tenant, link };
+/* ----- linking ----- */
+async function chooseFile() {
+  if (!CAN_LINK) { exMsg("Linking needs Chrome or Edge on a laptop or desktop. Use the backup buttons below instead."); return; }
   try {
-    initMsal();
-    exMsg("Signing in…");
-    const res = await msalApp.loginPopup({ scopes: SCOPES });
-    account = res.account; msalApp.setActiveAccount(account);
-    exMsg("Finding your workbook…");
-    await resolveItem();
-    exMsg("Reading “" + cfg.name + "”…");
-    const lists = await pullLists();
-    if (!lists.length) throw new Error("No tracking tables found. Each sheet needs a header row with No / Task.");
-    if (JSON.stringify(lists) !== JSON.stringify(state.lists) &&
-        !(await ask(`Load ${lists.reduce((t, l) => t + l.sections.reduce((u, s) => u + s.rows.length, 0), 0)} tasks from “${cfg.name}”? This replaces what is on the page now.`, "Load"))) {
-      exMsg("Not connected."); return;
+    const [h] = await window.showOpenFilePicker({
+      multiple: false,
+      types: [{ description: "Excel workbook", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }]
+    });
+    if ((await h.requestPermission({ mode: "readwrite" })) !== "granted") { exMsg("Permission is needed so changes can be saved into the file."); return; }
+    fh = h;
+    exMsg("Reading “" + h.name + "”…");
+    const r = await readFromFile();
+    if (!r.lists.length) throw new Error("No tracking tables found. Each sheet needs a header row with No / Task.");
+    if (JSON.stringify(r.lists) !== JSON.stringify(state.lists) &&
+        !(await ask(`Load ${countTasks(r.lists)} tasks from “${h.name}”? This replaces what is on the page now.`, "Load"))) {
+      fh = null; exMsg("Not linked."); return;
     }
     ex.dirty.clear(); persistDirty();
-    ex.linked = true; ex.ready = true; ex.lastPull = Date.now();
-    applyLists(lists); updateExcelUI(); setStatus("Synced to Excel");
-    exMsg("Connected to “" + cfg.name + "”.");
+    ex.linked = ex.ready = true; ex.modified = r.modified;
+    await rememberHandle(h);
+    try { localStorage.setItem(LINK_KEY, h.name); } catch (e) {}
+    applyLists(r.lists); updateExcelUI(); setStatus("Synced with Excel");
+    exMsg("Linked to “" + h.name + "”. Changes now save into it.");
   } catch (e) {
-    ex.ready = false; updateExcelUI();
-    exMsg("Couldn’t connect: " + (e && e.message ? e.message : e));
+    if (e && e.name === "AbortError") return;
+    fh = null; exMsg("Couldn’t link: " + (e && e.message ? e.message : e));
   }
 }
-function disconnect() {
-  ex.linked = ex.ready = false; ex.dirty.clear(); persistDirty();
-  cfg = null; account = null; msalApp = null;
-  try {
-    localStorage.removeItem(CFG_KEY);
-    Object.keys(localStorage).filter(k => k.startsWith("msal.") || k.includes("login.windows.net")).forEach(k => localStorage.removeItem(k));
-  } catch (e) {}
-  updateExcelUI(); setStatus("Saved"); exMsg("Disconnected. Your data stays on this page.");
+async function activate() {
+  try { ex.ready = true; updateExcelUI(); if (ex.dirty.size) await flush(); else await refresh(); }
+  catch (e) { ex.ready = false; updateExcelUI(); setStatus("Couldn’t read the Excel file"); }
+}
+async function reconnect() {
+  try { if ((await fh.requestPermission({ mode: "readwrite" })) === "granted") await activate(); }
+  catch (e) { toast("Couldn’t reconnect. Try Link Excel file again."); }
+}
+function unlink() {
+  fh = null; ex.linked = ex.ready = false; ex.dirty.clear(); persistDirty(); rememberHandle(null);
+  try { localStorage.removeItem(LINK_KEY); } catch (e) {}
+  updateExcelUI(); setStatus("Saved"); exMsg("Unlinked. Your data stays on this page.");
 }
 function openExcel() {
-  $("#exLink").value = cfg?.link || ""; $("#exClient").value = cfg?.clientId || ""; $("#exTenant").value = cfg?.tenant || "";
-  $("#exRedirect").textContent = REDIRECT;
-  exMsg(ex.ready ? "Connected to “" + (cfg.name || "your workbook") + "”." : "");
+  exMsg(!CAN_LINK ? "This browser can’t link files. Use Chrome or Edge on a computer, or the backup buttons below."
+    : ex.ready ? "Linked to “" + (fh && fh.name) + "”." : "");
   $("#dlgExcel").showModal();
 }
-$("#btnExcel").onclick = openExcel;
+$("#btnExcel").onclick = () => (ex.linked && !ex.ready && fh ? reconnect() : openExcel());
 $("#exClose").onclick = () => $("#dlgExcel").close();
-$("#exConnect").onclick = connect;
-$("#exDisc").onclick = disconnect;
+$("#exChoose").onclick = chooseFile;
+$("#exDisc").onclick = unlink;
 $("#exPull").onclick = async () => {
-  if (!ex.linked) { exMsg("Connect first."); return; }
+  if (!ex.linked || !fh) { exMsg("Link a file first."); return; }
   try {
-    if (!ex.ready) { initMsal(); account = msalApp.getAllAccounts()[0]; if (!account) { exMsg("Use Save & connect to sign in again."); return; } ex.ready = true; updateExcelUI(); }
+    if (!ex.ready) { await reconnect(); if (!ex.ready) return; }
     exMsg("Refreshing…"); await refresh(); exMsg("Up to date.");
-  } catch (e) { exMsg("Couldn’t refresh: " + e.message); setStatus("Sync failed"); }
+  } catch (e) { exMsg("Couldn’t refresh: " + e.message); }
 };
 
 async function startExcel() {
-  if (cfg && cfg.item) ex.linked = true;
   updateExcelUI();
-  if (!ex.linked) return;
-  try {
-    initMsal();
-    account = msalApp.getAllAccounts()[0];
-    if (!account) { setStatus("Excel: sign in again"); return; }
-    msalApp.setActiveAccount(account);
-    ex.ready = true; updateExcelUI();
-    if (ex.dirty.size) await flush(); else await refresh();
-  } catch (e) {
-    ex.ready = false; updateExcelUI(); setStatus("Excel: sign in again");
-  }
+  if (!CAN_LINK || !localStorage.getItem(LINK_KEY)) return;
+  fh = await recallHandle();
+  if (!fh) return;
+  ex.linked = true;
+  if ((await fh.queryPermission({ mode: "readwrite" })) === "granted") await activate();
+  else { updateExcelUI(); setStatus("Click Reconnect Excel"); }
 }
-document.addEventListener("visibilitychange", () => {
-  const a = document.activeElement;
-  const typing = a && /INPUT|TEXTAREA|SELECT/.test(a.tagName);
-  if (document.visibilityState === "visible" && ex.ready && !ex.busy && !ex.dirty.size && !typing && Date.now() - ex.lastPull > 60000) {
-    refresh().catch(() => setStatus("Sync failed"));
-  }
+document.addEventListener("visibilitychange", async () => {
+  const a = document.activeElement, typing = a && /INPUT|TEXTAREA|SELECT/.test(a.tagName);
+  if (document.visibilityState !== "visible" || !ex.ready || ex.busy || ex.dirty.size || typing) return;
+  try { if ((await fh.getFile()).lastModified !== ex.modified) await refresh(); } catch (e) {}
 });
 
-if (!IN_POPUP) {
-  render();
-  setStatus(load() ? "Saved" : "");
-  startExcel();
-}
+render();
+setStatus(load() ? "Saved" : "");
+startExcel();
 </script>
 </body>
 </html>
